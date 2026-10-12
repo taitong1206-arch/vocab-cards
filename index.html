@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>單字卡</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="單字卡">
+<meta name="theme-color" content="#1F7A5A">
+<style>
+:root{--bg:#F1EFE9;--card:#fff;--ink:#1D2420;--mute:#69726C;--line:#DAD6CB;--acc:#1F7A5A;--onacc:#fff;--again:#B3382C;--hard:#B7791F;--good:#1F7A5A;--easy:#2B59C3}
+@media (prefers-color-scheme:dark){:root{--bg:#141815;--card:#1D231F;--ink:#E7ECE8;--mute:#8F9A93;--line:#2D3630;--acc:#4DB88F;--onacc:#0C1410;--again:#E5776C;--hard:#E0A94F;--good:#4DB88F;--easy:#7AA2F5}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 "Avenir Next",system-ui,-apple-system,"PingFang TC","Noto Sans TC",sans-serif;-webkit-tap-highlight-color:transparent;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+main{max-width:520px;margin:0 auto;padding:16px 14px 40px;display:grid;gap:12px}
+header{display:flex;justify-content:space-between;align-items:center;gap:8px}
+h1{font-size:20px;margin:0}h2{font-size:15px;margin:0 0 8px}
+section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+button,select,input[type=number],.pick{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;min-height:44px;padding:0 12px;cursor:pointer}
+button:active{filter:brightness(.92)}button:disabled{opacity:.4}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.pick{display:inline-flex;align-items:center;background:var(--acc);color:var(--onacc);border-color:var(--acc);font-weight:600}
+.note{color:var(--mute);font-size:13px;margin:0}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.deck{border-top:1px solid var(--line);padding:12px 0;display:grid;gap:8px}.deck:first-of-type{border-top:0}
+.deck b{overflow-wrap:anywhere}.cnt{color:var(--mute);font-variant-numeric:tabular-nums}
+.go{background:var(--acc);color:var(--onacc);border-color:var(--acc);font-weight:600}
+#study[hidden],#home[hidden]{display:none}
+#card{min-height:220px;display:grid;align-content:center;gap:12px;text-align:center;padding:20px 8px;cursor:pointer}
+#fr{font-size:34px;font-weight:700;overflow-wrap:anywhere}
+#bk{font-size:20px;overflow-wrap:anywhere;white-space:pre-wrap}
+#ex{color:var(--mute);overflow-wrap:anywhere}
+.grades{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.grades button{display:grid;padding:6px 2px;min-height:56px;font-weight:600;line-height:1.2}
+.grades small{font-weight:400;color:var(--mute)}
+.g0{border-color:var(--again);color:var(--again)}.g1{border-color:var(--hard);color:var(--hard)}.g2{border-color:var(--good);color:var(--good)}.g3{border-color:var(--easy);color:var(--easy)}
+.prog{color:var(--mute);font-variant-numeric:tabular-nums}
+label.set{display:flex;gap:8px;align-items:center}
+</style>
+</head>
+<body>
+<main>
+<header><h1>單字卡</h1><span id="swst" class="note">離線：檢查中…</span></header>
+
+<div id="home" style="display:grid;gap:12px">
+<section>
+<div class="row"><label class="pick">匯入 CSV<input type="file" id="imp" accept=".csv,.txt,.tsv,.json,text/csv,text/plain,application/json" multiple hidden></label>
+<button id="bak">完整備份</button></div>
+<p class="note" style="margin-top:10px">CSV 欄位順序：①單字 ②解釋 ③例句（可省略）。第一列若是標題（例如「單字,解釋」）會自動略過。以檔名作為牌組名稱，重複的單字會略過。檔案請用 UTF-8 編碼。</p>
+<p class="note" id="msg" style="margin-top:6px" role="status"></p>
+</section>
+<section><h2>牌組</h2><div id="decks"></div></section>
+<section>
+<h2>設定</h2>
+<div class="row" style="margin-bottom:8px"><label for="npd">每天新卡數</label><input type="number" id="npd" min="0" max="500" style="width:90px"></div>
+<div class="row" style="margin-bottom:8px"><label for="rate">朗讀速度</label><select id="rate"><option value="0.6">慢</option><option value="0.9">稍慢</option><option value="1">正常</option><option value="1.2">快</option></select></div>
+<label class="set"><input type="checkbox" id="auto">出題時自動朗讀單字</label>
+<p class="note" style="margin-top:10px">資料只存在這支手機的瀏覽器內，請定期用「完整備份」匯出。</p>
+</section>
+</div>
+
+<div id="study" hidden style="display:grid;gap:12px">
+<div class="row" style="justify-content:space-between"><button id="back">← 返回</button><span class="prog" id="prog"></span></div>
+<section id="card" tabindex="0" role="button" aria-label="點一下顯示答案">
+<div id="fr"></div><div id="bk"></div><div id="ex"></div>
+</section>
+<div class="row"><button id="sp" style="flex:1">🔊 朗讀單字</button><button id="spx" style="flex:1">🔊 朗讀例句</button></div>
+<button id="show" class="go">顯示答案</button>
+<div class="grades" id="grades" hidden>
+<button class="g0" data-g="0">重來<small id="p0"></small></button>
+<button class="g1" data-g="1">困難<small id="p1"></small></button>
+<button class="g2" data-g="2">良好<small id="p2"></small></button>
+<button class="g3" data-g="3">簡單<small id="p3"></small></button>
+</div>
+</div>
+</main>
+
+<script>
+const $=s=>document.querySelector(s),LS='vc:data';
+const LANGS=[['en-US','英文（美）'],['en-GB','英文（英）'],['ja-JP','日文'],['ko-KR','韓文'],['fr-FR','法文'],['de-DE','德文'],['es-ES','西班牙文'],['it-IT','義大利文'],['zh-TW','中文（台灣）']];
+let S={decks:[],set:{npd:20,rate:0.9,auto:true}};
+try{const d=JSON.parse(localStorage.getItem(LS)||'null');if(d&&d.decks)S=Object.assign(S,d)}catch(e){}
+const save=()=>{try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){alert('儲存失敗，空間可能不足，請先匯出備份。')}};
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate()};
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+
+/* ---------- CSV ---------- */
+function parseCSV(t){
+  t=t.replace(/^\uFEFF/,'');
+  const first=t.split(/\r?\n/)[0]||'';
+  const d=[',','\t',';'].map(x=>[x,first.split(x).length]).sort((a,b)=>b[1]-a[1])[0][0];
+  const rows=[];let r=[],c='',q=false;
+  for(let i=0;i<t.length;i++){
+    const ch=t[i];
+    if(q){if(ch==='"'){if(t[i+1]==='"'){c+='"';i++}else q=false}else c+=ch}
+    else if(ch==='"')q=true;
+    else if(ch===d){r.push(c);c=''}
+    else if(ch==='\n'){r.push(c);rows.push(r);r=[];c=''}
+    else if(ch!=='\r')c+=ch;
+  }
+  if(c!==''||r.length){r.push(c);rows.push(r)}
+  return rows.filter(r=>r.some(x=>x.trim()!==''));
+}
+const esc=v=>/[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;
+function dl(name,text,type){
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+}
+
+/* ---------- 匯入 / 備份 ---------- */
+async function importFiles(files){
+  const msg=[];
+  for(const f of files){
+    const txt=await f.text();
+    if(/\.json$/i.test(f.name)){
+      try{const d=JSON.parse(txt);if(!d.decks)throw 0;
+        if(confirm('還原備份會取代目前所有牌組與進度，確定嗎？')){S=Object.assign({decks:[],set:S.set},d);msg.push('已還原備份')}
+      }catch(e){msg.push(f.name+'：不是有效的備份檔')}
+      continue;
+    }
+    const rows=parseCSV(txt);
+    if(rows.length&&/^(front|word|term|單字|正面|詞彙)$/i.test(rows[0][0].trim()))rows.shift();
+    const name=f.name.replace(/\.[^.]+$/,'');
+    let dk=S.decks.find(d=>d.name===name);
+    if(!dk){dk={id:uid(),name,lang:'en-US',cards:[],newDay:'',newCount:0};S.decks.push(dk)}
+    const have=new Set(dk.cards.map(c=>c.f));let add=0;
+    rows.forEach(r=>{
+      const fr=(r[0]||'').trim();if(!fr||have.has(fr))return;have.add(fr);
+      dk.cards.push({f:fr,b:(r[1]||'').trim(),e:(r[2]||'').trim(),ease:2.5,ivl:0,due:0,reps:0,lapses:0});add++;
+    });
+    const skip=rows.length-add;
+    msg.push(name+'：新增 '+add+' 張'+(skip?'，略過 '+skip+' 張（空白或重複）':''));
+  }
+  save();renderHome();$('#msg').textContent=msg.join('；');
+}
+$('#imp').onchange=e=>{const fs=Array.from(e.target.files);e.target.value='';importFiles(fs)};
+$('#bak').onclick=()=>dl('單字卡備份-'+today()+'.json',JSON.stringify(S),'application/json');
+
+/* ---------- 首頁 ---------- */
+function counts(dk){
+  const now=Date.now();
+  const due=dk.cards.filter(c=>c.reps>0&&c.due<=now).length;
+  const left=dk.newDay===today()?Math.max(0,S.set.npd-dk.newCount):S.set.npd;
+  const nw=Math.min(dk.cards.filter(c=>c.reps===0).length,left);
+  return {due,nw};
+}
+function renderHome(){
+  const box=$('#decks');box.innerHTML='';
+  if(!S.decks.length){const p=document.createElement('p');p.className='note';p.textContent='還沒有牌組。按「匯入 CSV」開始。';box.appendChild(p)}
+  S.decks.forEach(dk=>{
+    const {due,nw}=counts(dk),el=document.createElement('div');el.className='deck';
+    const t=document.createElement('div');const b=document.createElement('b');b.textContent=dk.name;
+    const c=document.createElement('div');c.className='cnt';c.textContent='新 '+nw+' · 待複習 '+due+' · 共 '+dk.cards.length+' 張';
+    t.append(b,c);
+    const r=document.createElement('div');r.className='row';
+    const go=document.createElement('button');go.className='go';go.textContent='開始學習';go.disabled=!(due+nw);go.onclick=()=>start(dk);
+    const sel=document.createElement('select');sel.setAttribute('aria-label','朗讀語言');
+    LANGS.forEach(([v,n])=>{const o=document.createElement('option');o.value=v;o.textContent=n;if(v===dk.lang)o.selected=true;sel.appendChild(o)});
+    sel.onchange=()=>{dk.lang=sel.value;save()};
+    const ex=document.createElement('button');ex.textContent='匯出 CSV';
+    ex.onclick=()=>dl(dk.name+'.csv','\uFEFF'+dk.cards.map(k=>[k.f,k.b,k.e].map(esc).join(',')).join('\n'),'text/csv');
+    const del=document.createElement('button');del.textContent='刪除';
+    del.onclick=()=>{if(confirm('確定刪除牌組「'+dk.name+'」？進度也會一併刪除。')){S.decks=S.decks.filter(x=>x!==dk);save();renderHome()}};
+    r.append(go,sel,ex,del);el.append(t,r);box.appendChild(el);
+  });
+  $('#npd').value=S.set.npd;$('#rate').value=String(S.set.rate);$('#auto').checked=S.set.auto;
+}
+$('#npd').onchange=e=>{S.set.npd=Math.max(0,Math.min(500,parseInt(e.target.value)||0));save();renderHome()};
+$('#rate').onchange=e=>{S.set.rate=+e.target.value;save()};
+$('#auto').onchange=e=>{S.set.auto=e.target.checked;save()};
+
+/* ---------- TTS ---------- */
+function speak(text,lang){
+  if(!text||!('speechSynthesis' in window))return;
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);u.lang=lang;u.rate=S.set.rate;
+  const vs=speechSynthesis.getVoices();
+  const v=vs.find(x=>x.lang.replace('_','-')===lang)||vs.find(x=>x.lang.slice(0,2)===lang.slice(0,2));
+  if(v)u.voice=v;
+  speechSynthesis.speak(u);
+}
+
+/* ---------- 學習 ---------- */
+let dk=null,q=[],cur=null,total=0,done=0;
+function calc(c,g){
+  let ivl=c.ivl,ease=c.ease;
+  if(g===0)return{ivl:0,ease:Math.max(1.3,ease-.2)};
+  if(g===1){ivl=Math.max(1,ivl*1.2);ease=Math.max(1.3,ease-.15)}
+  if(g===2)ivl=ivl<1?1:ivl*ease;
+  if(g===3){ivl=ivl<1?4:ivl*ease*1.3;ease+=.15}
+  return{ivl:Math.max(1,Math.round(ivl)),ease};
+}
+const lab=i=>i===0?'1 分鐘':i+' 天';
+function start(d){
+  dk=d;const t=today();if(dk.newDay!==t){dk.newDay=t;dk.newCount=0}
+  const now=Date.now();
+  const due=dk.cards.filter(c=>c.reps>0&&c.due<=now).sort((a,b)=>a.due-b.due);
+  const nw=dk.cards.filter(c=>c.reps===0).slice(0,Math.max(0,S.set.npd-dk.newCount));
+  q=[...due,...nw];total=q.length;done=0;
+  $('#home').hidden=true;$('#study').hidden=false;next();
+}
+function next(){
+  cur=q.shift();
+  if(!cur){
+    $('#fr').textContent='今天完成了 🎉';$('#bk').textContent='共複習 '+done+' 次';$('#ex').textContent='';
+    $('#show').hidden=true;$('#grades').hidden=true;$('#sp').hidden=$('#spx').hidden=true;$('#prog').textContent='';return;
+  }
+  $('#sp').hidden=false;$('#spx').hidden=!cur.e;
+  $('#fr').textContent=cur.f;$('#bk').textContent='';$('#ex').textContent='';
+  $('#show').hidden=false;$('#grades').hidden=true;
+  $('#prog').textContent='剩餘 '+(q.length+1)+' 張';
+  if(S.set.auto)speak(cur.f,dk.lang);
+}
+function reveal(){
+  if(!cur||!$('#grades').hidden)return;
+  $('#bk').textContent=cur.b;$('#ex').textContent=cur.e;
+  $('#show').hidden=true;$('#grades').hidden=false;
+  for(let g=0;g<4;g++)$('#p'+g).textContent=lab(calc(cur,g).ivl);
+}
+function grade(g){
+  const c=cur,r=calc(c,g);
+  if(c.reps===0)dk.newCount++;
+  c.reps++;c.ease=r.ease;c.ivl=r.ivl;done++;
+  if(g===0){c.lapses++;c.due=Date.now()+60000;q.push(c)}
+  else c.due=Date.now()+r.ivl*864e5;
+  save();next();
+}
+$('#show').onclick=reveal;$('#card').onclick=reveal;
+$('#card').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();reveal()}};
+document.querySelectorAll('#grades button').forEach(b=>b.onclick=()=>grade(+b.dataset.g));
+$('#sp').onclick=()=>cur&&speak(cur.f,dk.lang);
+$('#spx').onclick=()=>cur&&speak(cur.e,dk.lang);
+$('#back').onclick=()=>{speechSynthesis&&speechSynthesis.cancel();$('#study').hidden=true;$('#home').hidden=false;renderHome()};
+if('speechSynthesis' in window)speechSynthesis.getVoices();
+renderHome();
+
+/* ---------- 離線 ---------- */
+(async()=>{
+  const el=$('#swst');
+  if(!('serviceWorker' in navigator)){el.textContent='離線：此環境不支援';return}
+  try{
+    await navigator.serviceWorker.register('./sw.js');
+    await navigator.serviceWorker.ready;
+    const n=(await (await caches.open('vocab-cards-v1')).keys()).length;
+    el.textContent=n>=5?'離線：已就緒 ✓':'離線：快取不完整 '+n+'/5';
+  }catch(e){el.textContent='離線：失敗（'+((e&&e.name)||'未知')+'）'}
+})();
+</script>
+</body>
+</html>
