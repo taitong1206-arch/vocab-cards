@@ -1,5 +1,5 @@
 // 改版時請把版本號加 1，舊快取才會被清掉
-const V = 'vocab-cards-v1';
+const V = 'vocab-cards-v2';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

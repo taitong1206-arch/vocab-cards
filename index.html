@@ -31,6 +31,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 #study[hidden],#home[hidden]{display:none}
 #card{min-height:220px;display:grid;align-content:center;gap:12px;text-align:center;padding:20px 8px;cursor:pointer}
 #fr{font-size:34px;font-weight:700;overflow-wrap:anywhere}
+#ipa{font-size:20px;color:var(--mute);overflow-wrap:anywhere}
 #bk{font-size:20px;overflow-wrap:anywhere;white-space:pre-wrap}
 #ex{color:var(--mute);overflow-wrap:anywhere}
 .grades{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
@@ -49,7 +50,7 @@ label.set{display:flex;gap:8px;align-items:center}
 <section>
 <div class="row"><label class="pick">匯入 CSV<input type="file" id="imp" accept=".csv,.txt,.tsv,.json,text/csv,text/plain,application/json" multiple hidden></label>
 <button id="bak">完整備份</button></div>
-<p class="note" style="margin-top:10px">CSV 欄位順序：①單字 ②解釋 ③例句（可省略）。第一列若是標題（例如「單字,解釋」）會自動略過。以檔名作為牌組名稱，重複的單字會略過。檔案請用 UTF-8 編碼。</p>
+<p class="note" style="margin-top:10px">CSV 欄位順序：①單字 ②解釋 ③例句 ④音標（③④可省略；沒有例句但要音標時，第三欄留空）。音標會顯示在單字正下方，原樣顯示，請自行決定要不要加斜線。重複匯入時，已存在但沒有音標的單字會補上音標。第一列若是標題（例如「單字,解釋」）會自動略過。以檔名作為牌組名稱，重複的單字會略過。檔案請用 UTF-8 編碼。</p>
 <p class="note" id="msg" style="margin-top:6px" role="status"></p>
 </section>
 <section><h2>牌組</h2><div id="decks"></div></section>
@@ -65,7 +66,7 @@ label.set{display:flex;gap:8px;align-items:center}
 <div id="study" hidden style="display:grid;gap:12px">
 <div class="row" style="justify-content:space-between"><button id="back">← 返回</button><span class="prog" id="prog"></span></div>
 <section id="card" tabindex="0" role="button" aria-label="點一下顯示答案">
-<div id="fr"></div><div id="bk"></div><div id="ex"></div>
+<div id="fr"></div><div id="ipa"></div><div id="bk"></div><div id="ex"></div>
 </section>
 <div class="row"><button id="sp" style="flex:1">🔊 朗讀單字</button><button id="spx" style="flex:1">🔊 朗讀例句</button></div>
 <button id="show" class="go">顯示答案</button>
@@ -126,13 +127,17 @@ async function importFiles(files){
     const name=f.name.replace(/\.[^.]+$/,'');
     let dk=S.decks.find(d=>d.name===name);
     if(!dk){dk={id:uid(),name,lang:'en-US',cards:[],newDay:'',newCount:0};S.decks.push(dk)}
-    const have=new Set(dk.cards.map(c=>c.f));let add=0;
+    const have=new Map(dk.cards.map(c=>[c.f,c]));let add=0,upd=0;
     rows.forEach(r=>{
-      const fr=(r[0]||'').trim();if(!fr||have.has(fr))return;have.add(fr);
-      dk.cards.push({f:fr,b:(r[1]||'').trim(),e:(r[2]||'').trim(),ease:2.5,ivl:0,due:0,reps:0,lapses:0});add++;
+      const fr=(r[0]||'').trim(),ip=(r[3]||'').trim();
+      if(!fr)return;
+      const old=have.get(fr);
+      if(old){if(ip&&!old.i){old.i=ip;upd++}return}
+      const c={f:fr,b:(r[1]||'').trim(),e:(r[2]||'').trim(),i:ip,ease:2.5,ivl:0,due:0,reps:0,lapses:0};
+      dk.cards.push(c);have.set(fr,c);add++;
     });
-    const skip=rows.length-add;
-    msg.push(name+'：新增 '+add+' 張'+(skip?'，略過 '+skip+' 張（空白或重複）':''));
+    const skip=rows.length-add-upd;
+    msg.push(name+'：新增 '+add+' 張'+(upd?'，補上音標 '+upd+' 張':'')+(skip?'，略過 '+skip+' 張（空白或重複）':''));
   }
   save();renderHome();$('#msg').textContent=msg.join('；');
 }
@@ -161,7 +166,7 @@ function renderHome(){
     LANGS.forEach(([v,n])=>{const o=document.createElement('option');o.value=v;o.textContent=n;if(v===dk.lang)o.selected=true;sel.appendChild(o)});
     sel.onchange=()=>{dk.lang=sel.value;save()};
     const ex=document.createElement('button');ex.textContent='匯出 CSV';
-    ex.onclick=()=>dl(dk.name+'.csv','\uFEFF'+dk.cards.map(k=>[k.f,k.b,k.e].map(esc).join(',')).join('\n'),'text/csv');
+    ex.onclick=()=>dl(dk.name+'.csv','\uFEFF'+dk.cards.map(k=>[k.f,k.b,k.e,k.i||''].map(esc).join(',')).join('\n'),'text/csv');
     const del=document.createElement('button');del.textContent='刪除';
     del.onclick=()=>{if(confirm('確定刪除牌組「'+dk.name+'」？進度也會一併刪除。')){S.decks=S.decks.filter(x=>x!==dk);save();renderHome()}};
     r.append(go,sel,ex,del);el.append(t,r);box.appendChild(el);
@@ -205,11 +210,11 @@ function start(d){
 function next(){
   cur=q.shift();
   if(!cur){
-    $('#fr').textContent='今天完成了 🎉';$('#bk').textContent='共複習 '+done+' 次';$('#ex').textContent='';
+    $('#fr').textContent='今天完成了 🎉';$('#ipa').textContent='';$('#bk').textContent='共複習 '+done+' 次';$('#ex').textContent='';
     $('#show').hidden=true;$('#grades').hidden=true;$('#sp').hidden=$('#spx').hidden=true;$('#prog').textContent='';return;
   }
   $('#sp').hidden=false;$('#spx').hidden=!cur.e;
-  $('#fr').textContent=cur.f;$('#bk').textContent='';$('#ex').textContent='';
+  $('#fr').textContent=cur.f;$('#ipa').textContent=cur.i||'';$('#bk').textContent='';$('#ex').textContent='';
   $('#show').hidden=false;$('#grades').hidden=true;
   $('#prog').textContent='剩餘 '+(q.length+1)+' 張';
   if(S.set.auto)speak(cur.f,dk.lang);
@@ -244,7 +249,7 @@ renderHome();
   try{
     await navigator.serviceWorker.register('./sw.js');
     await navigator.serviceWorker.ready;
-    const n=(await (await caches.open('vocab-cards-v1')).keys()).length;
+    const n=(await (await caches.open('vocab-cards-v2')).keys()).length;
     el.textContent=n>=5?'離線：已就緒 ✓':'離線：快取不完整 '+n+'/5';
   }catch(e){el.textContent='離線：失敗（'+((e&&e.name)||'未知')+'）'}
 })();
